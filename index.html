@@ -121,7 +121,7 @@
   <header class="page-head">
     <h1>Comissão — Fabio Barbosa Ramos Filho</h1>
     <p>Comissão calculada por parcela paga: valor da nota na família × percentual oficial, dividido pelas parcelas do pedido e multiplicado pelas parcelas já pagas naquele mês.</p>
-    <div class="updated-note"><span class="dot"></span>Última atualização: 01/10/2026</div>
+    <div class="updated-note"><span class="dot"></span>Última atualização: 03/11/2026</div>
   </header>
 
   <div class="summary" id="summary"></div>
@@ -144,7 +144,7 @@
           <th data-key="mes">Mês</th><th data-key="dt">Data Fat.</th><th data-key="n">Nota</th><th data-key="c">Cliente</th><th data-key="g">Grupo</th>
           <th class="num" data-key="vv">Valor Cheio</th><th class="num" data-key="p">%</th><th class="num" data-key="pp">Parcelas no Mês</th>
           <th class="num" data-key="pt">Parcelas Total</th>
-          <th class="num" data-key="ct">Comissão Total</th><th class="num" data-key="cs">Comissão de Setembro</th>
+          <th class="num" data-key="ct">Comissão Total</th><th class="num" data-key="cs">Comissão do Mês</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -155,7 +155,7 @@
   <footer>Valores calculados diretamente da base de vendas e liquidação — não passam por planilha manual.</footer>
 </div>
 
-<script><script>let RAW_DATA = [];</script>
+<script>let RAW_DATA = [];</script>
 <script>
 (async function(){
   try {
@@ -176,25 +176,34 @@
     return `${dia}/${mes}/${ano}`;
   };
 
-  const meses = Array.from(new Set(RAW_DATA.map(d=>d.mes)));
+  const MESES_ORDEM = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const mesKey = (m) => { const [nome, ano] = m.split('/'); return parseInt(ano)*100 + MESES_ORDEM.indexOf(nome); };
+  const meses = Array.from(new Set(RAW_DATA.map(d=>d.mes))).sort((a,b)=>mesKey(a)-mesKey(b));
   const mesSel = document.getElementById('mesFilter');
   meses.forEach(m=>{
     const opt = document.createElement('option');
     opt.value = m; opt.textContent = m;
     mesSel.appendChild(opt);
   });
+  if (meses.length) mesSel.value = meses[meses.length-1];   // abre no mês mais recente
 
   function renderSummary(rows){
-    const totalValorCheio = rows.reduce((s,r)=>s+r.vv, 0);
-    const totalComissaoTotal = rows.reduce((s,r)=>s+r.ct, 0);
+    // valor faturado e comissão total: cada nota×família conta uma vez só
+    // (uma nota paga em dois meses aparece nos dois, mas o valor dela é um só)
+    const unicos = new Map();
+    rows.forEach(r => { unicos.set(r.n + '|' + r.g, r); });
+    const totalValorCheio = Array.from(unicos.values()).reduce((s,r)=>s+r.vv, 0);
+    const totalComissaoTotal = Array.from(unicos.values()).reduce((s,r)=>s+r.ct, 0);
     const totalComissaoMes = rows.reduce((s,r)=>s+r.cs, 0);
+    const rotuloMes = document.getElementById('mesFilter').value
+      ? 'Comissão do Mês sobre Liquidação' : 'Comissão no Período sobre Liquidação';
     const notas = new Set(rows.map(r=>r.n)).size;
     const pctMedio = totalValorCheio ? (totalComissaoTotal/totalValorCheio) : 0;
     const el = document.getElementById('summary');
     el.innerHTML = `
       <div class="cell"><div class="label">Valor Faturado</div><div class="value">R$ ${fmt(totalValorCheio)}</div></div>
       <div class="cell"><div class="label">Comissão Total</div><div class="value">R$ ${fmt(totalComissaoTotal)}</div></div>
-      <div class="cell accent"><div class="label">Comissão do Mês sobre Liquidação</div><div class="value">R$ ${fmt(totalComissaoMes)}</div></div>
+      <div class="cell accent"><div class="label">${rotuloMes}</div><div class="value">R$ ${fmt(totalComissaoMes)}</div></div>
       <div class="cell"><div class="label">% Média (ponderada)</div><div class="value">${(pctMedio*100).toFixed(2)}%</div></div>
       <div class="cell"><div class="label">Notas envolvidas</div><div class="value">${notas}</div></div>`;
   }
